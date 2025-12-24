@@ -28,13 +28,7 @@ application:
   type: nodejs
   
   package_files:
-    - "*.js"
-    - "*.json"
-    - "package*.json"
-    - "client/build/**"
-    - "!client/src/**"
-    - "!client/node_modules/**"
-    - "!node_modules/**"
+    - "./"
   
   package_fallback: true
   
