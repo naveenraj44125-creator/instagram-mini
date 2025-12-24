@@ -36,7 +36,7 @@ application:
     APP_ENV: production
     # Node.js specific
     NODE_ENV: production
-    PORT: "3000"
+    PORT: "3001"
     BUCKET_NAME: instagram-mini-uploads
     AWS_REGION: us-east-1
 
@@ -101,11 +101,10 @@ dependencies:
         - "22"    # SSH
         - "80"    # HTTP
         - "443"   # HTTPS
-        - "3000"  # Node.js
+        - "3001"  # Node.js
       deny_all_other: true
 
 deployment:
-  
   timeouts:
     ssh_connection: 120
     command_execution: 600
@@ -138,6 +137,15 @@ deployment:
         configure_application: true
         set_permissions: true
         restart_services: true
+      custom_commands:
+        - name: "Install client dependencies"
+          command: "cd /opt/nodejs-app/client && npm ci"
+          user: "root"
+          timeout: 300
+        - name: "Build React client"
+          command: "cd /opt/nodejs-app/client && npm run build"
+          user: "root"
+          timeout: 300
     
     verification:
       enabled: true
@@ -145,7 +153,7 @@ deployment:
       external_connectivity: true
       endpoints_to_test:
         - "/api/health"
-      port: 3000  # Node.js applications run on port 3000
+      port: 3001  # Instagram Mini Node.js app port
 
 github_actions:
   triggers:
@@ -172,7 +180,7 @@ monitoring:
   health_check:
     endpoint: "/api/health"
     expected_content: "Instagram Mini API is running"
-    port: 3000  # Node.js applications run on port 3000
+    port: 3001  # Instagram Mini Node.js app port
     max_attempts: 15
     wait_between_attempts: 20
     initial_wait: 60
