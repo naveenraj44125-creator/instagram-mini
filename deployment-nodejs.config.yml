@@ -28,7 +28,13 @@ application:
   type: nodejs
   
   package_files:
-    - "./"
+    - "*.js"
+    - "*.json"
+    - "package*.json"
+    - "client/build/**"
+    - "!client/src/**"
+    - "!client/node_modules/**"
+    - "!node_modules/**"
   
   package_fallback: true
   
@@ -137,15 +143,6 @@ deployment:
         configure_application: true
         set_permissions: true
         restart_services: true
-      custom_commands:
-        - name: "Install client dependencies"
-          command: "cd /opt/nodejs-app/client && npm ci"
-          user: "root"
-          timeout: 300
-        - name: "Build React client"
-          command: "cd /opt/nodejs-app/client && npm run build"
-          user: "root"
-          timeout: 300
     
     verification:
       enabled: true
