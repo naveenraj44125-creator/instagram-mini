@@ -45,6 +45,82 @@ to_uppercase() {
     echo "$1" | tr '[:lower:]' '[:upper:]'
 }
 
+# Function to detect fullstack React + Node.js application
+detect_fullstack_react() {
+    if [ -f "server.js" ] && [ -d "client" ] && [ -f "client/package.json" ]; then
+        echo "fullstack-react"
+        return 0
+    fi
+    return 1
+}
+
+# Function to auto-detect Node.js port from server.js
+detect_node_port() {
+    if [ -f "server.js" ]; then
+        # Look for PORT environment variable usage with fallback
+        PORT=$(grep -o "process\.env\.PORT.*||.*[0-9]\+" server.js | grep -o "[0-9]\+" | head -1)
+        if [ -n "$PORT" ]; then
+            echo "$PORT"
+        else
+            # Look for direct port assignment
+            PORT=$(grep -o "PORT.*=.*[0-9]\+" server.js | grep -o "[0-9]\+" | head -1)
+            echo "${PORT:-3000}"
+        fi
+    else
+        echo "3000"
+    fi
+}
+
+# Function to build React client if detected
+build_react_client_if_needed() {
+    local app_type="$1"
+    
+    if [[ "$app_type" == "nodejs" ]] && [ -d "client" ] && [ -f "client/package.json" ]; then
+        echo -e "${BLUE}Detected fullstack React + Node.js application${NC}"
+        
+        # Check if client/build already exists
+        if [ -d "client/build" ]; then
+            echo -e "${YELLOW}⚠️ client/build directory already exists${NC}"
+            if [[ "$FULLY_AUTOMATED" != "true" ]]; then
+                BUILD_CLIENT=$(get_yes_no "Rebuild React client?" "true")
+            else
+                BUILD_CLIENT="true"
+            fi
+        else
+            if [[ "$FULLY_AUTOMATED" != "true" ]]; then
+                BUILD_CLIENT=$(get_yes_no "Build React client locally before deployment?" "true")
+            else
+                BUILD_CLIENT="true"
+            fi
+        fi
+        
+        if [[ "$BUILD_CLIENT" == "true" ]]; then
+            echo -e "${BLUE}Building React client...${NC}"
+            cd client
+            if [ -f "package-lock.json" ]; then
+                npm ci
+            elif [ -f "yarn.lock" ]; then
+                yarn install --frozen-lockfile
+            else
+                npm install
+            fi
+            npm run build
+            cd ..
+            
+            if [ -d "client/build" ]; then
+                echo -e "${GREEN}✓ React client built successfully${NC}"
+                git add client/build/
+                return 0
+            else
+                echo -e "${RED}❌ Failed to build React client${NC}"
+                return 1
+            fi
+        fi
+    fi
+    
+    return 0
+}
+
 # Function to check prerequisites
 check_prerequisites() {
     echo -e "${BLUE}Checking prerequisites...${NC}"
@@ -318,10 +394,12 @@ EOF
 EOF
             ;;
         "nodejs")
+            # Detect actual port from server.js if it exists
+            DETECTED_PORT=$(detect_node_port)
             cat >> "deployment-${app_type}.config.yml" << EOF
     # Node.js specific
     NODE_ENV: production
-    PORT: "3000"
+    PORT: "${DETECTED_PORT}"
 EOF
             ;;
         "python")
@@ -535,8 +613,10 @@ EOF
     # Add type-specific ports
     case $app_type in
         "nodejs")
+            # Use detected port for firewall configuration
+            DETECTED_PORT=$(detect_node_port)
             cat >> "deployment-${app_type}.config.yml" << EOF
-        - "3000"  # Node.js
+        - "${DETECTED_PORT}"  # Node.js
 EOF
             ;;
         "python")
@@ -634,8 +714,10 @@ EOF
         - "/api/health"
 EOF
             fi
+            # Use detected port for verification
+            DETECTED_PORT=$(detect_node_port)
             cat >> "deployment-${app_type}.config.yml" << EOF
-      port: 3000  # Node.js applications run on port 3000
+      port: ${DETECTED_PORT}  # Node.js applications run on port ${DETECTED_PORT}
 EOF
             ;;
         "python")
@@ -2540,6 +2622,9 @@ GITIGNORE
     
     # Create example application
     create_example_app "$APP_TYPE" "$APP_NAME"
+    
+    # Build React client if this is a fullstack Node.js + React app
+    build_react_client_if_needed "$APP_TYPE"
     
     # Validate generated configuration
     if ! validate_configuration "$APP_TYPE"; then
